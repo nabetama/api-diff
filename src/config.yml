@@ -1,0 +1,9 @@
+---
+- endpoint1: https://jsonplaceholder.typicode.com/todos/1
+  params:
+    - foo: hoge
+    - bar: 123
+- endpoint2: https://jsonplaceholder.typicode.com/todos/2
+  params:
+    - foo: fuga
+    - bar: 345
