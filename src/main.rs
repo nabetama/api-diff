@@ -41,7 +41,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         diff_headers(&header1, &header2);
     }
 
-    println!("\nBody Diff:");
     diff_bodies(&body1, &body2);
 
     Ok(())
@@ -71,15 +70,15 @@ fn diff_headers(headers1: &HeaderMap, headers2: &HeaderMap) {
 }
 
 fn diff_bodies(body1: &Value, body2: &Value) {
-    let binding1 = body1.to_string();
-    let binding2 = body2.to_string();
+    let formatted_body1 = serde_json::to_string_pretty(body1).unwrap();
+    let formatted_body2 = serde_json::to_string_pretty(body2).unwrap();
 
-    let diff = TextDiff::from_lines(&binding1, &binding2);
+    let diff = TextDiff::from_lines(&formatted_body1, &formatted_body2);
     for change in diff.iter_all_changes() {
         match change.tag() {
             ChangeTag::Delete => print!("{}", format!("-{}", change).red()),
             ChangeTag::Insert => print!("{}", format!("+{}", change).green()),
-            ChangeTag::Equal => print!("{}", format!(" {}", change).normal()),
+            ChangeTag::Equal => print!(" {}", change),
         }
     }
 }
