@@ -1,97 +1,82 @@
+mod config;
+mod diff;
+mod utils;
+
 use std::collections::HashMap;
 
-use clap::Parser;
-use colored::Colorize;
-use reqwest::{header::HeaderMap, Client};
+use reqwest::Client;
 use serde_json::Value;
-use similar::{ChangeTag, TextDiff};
+use tokio::main;
+
+use clap::{command, Parser};
+
+use config::load_config;
+use utils::hashmap_to_headers;
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = "Compare two API endpoints")]
-struct Args {
+#[command(version, about, long_about = "Compare two API endpoints")]
+pub struct Args {
     /// First API endpoint
     #[arg(short = 'a', long)]
-    endpoint1: String,
+    pub endpoint_a: String,
 
     /// Second API endpoint
     #[arg(short = 'b', long)]
-    endpoint2: String,
+    pub endpoint_b: String,
 
-    /// Show header diffs
+    /// Show headers diff
+    #[arg(long)]
+    pub show_headers: bool,
+
+    /// Request headers file (JSON or YAML)
     #[arg(short = 'H', long)]
-    show_headers: bool,
+    pub headers_file: Option<String>,
+
+    /// Query parameters file (JSON or YAML)
+    #[arg(short = 'q', long)]
+    pub query_file: Option<String>,
 }
 
-#[tokio::main]
+#[main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let client = Client::new();
 
-    let response1 = client.get(&args.endpoint1).send().await?;
-    let response2 = client.get(&args.endpoint2).send().await?;
+    let headers = if let Some(headers_file) = args.headers_file {
+        load_config(&headers_file)?.headers.unwrap_or_default()
+    } else {
+        HashMap::new()
+    };
+    let query = if let Some(query_file) = args.query_file {
+        load_config(&query_file)?.query.unwrap_or_default()
+    } else {
+        HashMap::new()
+    };
 
-    let header1 = response1.headers().clone();
-    let header2 = response2.headers().clone();
+    let response_a = client
+        .get(&args.endpoint_a)
+        .headers(hashmap_to_headers(headers.clone())?)
+        .query(&query)
+        .send()
+        .await?;
 
-    let body1: Value = response1.json().await?;
-    let body2: Value = response2.json().await?;
+    let response_b = client
+        .get(&args.endpoint_b)
+        .headers(hashmap_to_headers(headers.clone())?)
+        .query(&query)
+        .send()
+        .await?;
 
+    let headers_a = response_a.headers().clone();
+    let headers_b = response_b.headers().clone();
     if args.show_headers {
         println!("Headers diff :");
-        diff_headers(&header1, &header2);
+        diff::diff_headers(&headers_a, &headers_b);
     }
 
-    diff_bodies(&body1, &body2);
+    let body_a: Value = response_a.json().await?;
+    let body_b: Value = response_b.json().await?;
+    diff::diff_bodies(&body_a, &body_b);
 
     Ok(())
-}
-
-fn diff_headers(headers1: &HeaderMap, headers2: &HeaderMap) {
-    let headers1_map: HashMap<_, _> = headers1
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.to_str().unwrap()))
-        .collect();
-    let headers2_map: HashMap<_, _> = headers2
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.to_str().unwrap()))
-        .collect();
-
-    for key in headers1_map
-        .keys()
-        .chain(headers2_map.keys())
-        .collect::<Vec<_>>()
-    {
-        let value1 = headers1_map.get(key).unwrap_or(&"");
-        let value2 = headers2_map.get(key).unwrap_or(&"");
-        if value1 != value2 {
-            println!("{}:\n{}", key, format_diff(value1, value2));
-        }
-    }
-}
-
-fn diff_bodies(body1: &Value, body2: &Value) {
-    let formatted_body1 = serde_json::to_string_pretty(body1).unwrap();
-    let formatted_body2 = serde_json::to_string_pretty(body2).unwrap();
-
-    let diff = TextDiff::from_lines(&formatted_body1, &formatted_body2);
-    for change in diff.iter_all_changes() {
-        match change.tag() {
-            ChangeTag::Delete => print!("{}", format!("-{}", change).red()),
-            ChangeTag::Insert => print!("{}", format!("+{}", change).green()),
-            ChangeTag::Equal => print!(" {}", change),
-        }
-    }
-}
-
-fn format_diff(value1: &str, value2: &str) -> String {
-    let diff = TextDiff::from_lines(value1, value2);
-    let mut result = String::new();
-    for change in diff.iter_all_changes() {
-        match change.tag() {
-            ChangeTag::Delete => result.push_str(&format!("-{}", change).red().to_string()),
-            ChangeTag::Insert => result.push_str(&format!("+{}", change).green().to_string()),
-            ChangeTag::Equal => result.push_str(&format!(" {}", change).normal().to_string()),
-        }
-    }
-    result
 }
