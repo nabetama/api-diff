@@ -4,6 +4,7 @@ mod utils;
 
 use std::collections::HashMap;
 
+use colored::Colorize;
 use reqwest::Client;
 use serde_json::Value;
 use tokio::main;
@@ -53,19 +54,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         HashMap::new()
     };
 
-    let response_a = client
+    let request_a = client
         .get(&args.endpoint_a)
         .headers(hashmap_to_headers(headers.clone())?)
         .query(&query)
-        .send()
-        .await?;
+        .build()?;
 
-    let response_b = client
+    println!("{}", "----------------------".to_string().green());
+    println!("Request for endpoint_a:");
+    println!("URL: {}", request_a.url());
+    println!("Headers: {:?}", request_a.headers());
+
+    let response_a = client.execute(request_a).await?;
+
+    let request_b = client
         .get(&args.endpoint_b)
         .headers(hashmap_to_headers(headers.clone())?)
         .query(&query)
-        .send()
-        .await?;
+        .build()?;
+
+    println!("{}", "----------------------".to_string().red());
+    println!("Request for endpoint_b:");
+    println!("URL: {}", request_b.url());
+    println!("Headers: {:?}", request_b.headers());
+
+    let response_b = client.execute(request_b).await?;
 
     let headers_a = response_a.headers().clone();
     let headers_b = response_b.headers().clone();
