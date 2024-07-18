@@ -40,7 +40,7 @@ If you wanna header diff, specified `-H` option
 $ ./target/release/api-diff -a <ENDPOINT1> -b <ENDPOINT2> -H
 ```
 
-## add custom headers
+## add custom headers and query parameters
 
 headers.json
 
