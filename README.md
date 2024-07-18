@@ -64,6 +64,8 @@ query.json
 }
 ```
 
+To use the above files with the command, execute the command with the options `-H` and `-q`.
+
 ```sh
 $ ./target/release/api-diff  -a https://jsonplaceholder.typicode.com/posts  -b https://jsonplaceholder.typicode.com/posts -q ./src/query.json -H ./src/headers.json
 ----------------------
